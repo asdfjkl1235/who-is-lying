@@ -15,7 +15,7 @@ import ResultScreen from "@/components/ResultScreen";
 export default function RoomPage({
   params,
 }: {
-  params: Promise<{ code: string }>;
+  params: { code: string };
 }) {
   const {
     status,
@@ -37,10 +37,8 @@ export default function RoomPage({
   const [waitedLongEnough, setWaitedLongEnough] = useState(false);
 
   useEffect(() => {
-    params.then(({ code }) => {
-      setCode(code);
-    });
-  }, [params]);
+    setCode(params.code);
+  }, [params.code]);
 
   useEffect(() => {
     const t = setTimeout(() => setWaitedLongEnough(true), 4000);
