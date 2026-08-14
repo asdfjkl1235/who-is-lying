@@ -1,4 +1,7 @@
-import { Server, Socket } from "socket.io";
+import {
+  Server,
+  Socket,
+} from "socket.io";
 
 import {
   getRoom,
@@ -6,6 +9,7 @@ import {
   deleteRoom,
   getSession,
   saveSession,
+  deleteSession,
   generateSessionToken,
 } from "./store";
 
@@ -36,7 +40,10 @@ import {
 const RECONNECT_GRACE_MS = 45_000;
 
 const reconnectTimers =
-  new Map<string, NodeJS.Timeout>();
+  new Map<
+    string,
+    NodeJS.Timeout
+  >();
 
 function sendError(
   socket: Socket,
@@ -61,11 +68,13 @@ function currentRoleView(
   }
 
   if (
-    playerId === room.imposterId
+    playerId ===
+    room.imposterId
   ) {
     return {
       role: "imposter",
-      category: room.category,
+      category:
+        room.category,
       word: null,
     };
   }
@@ -73,8 +82,10 @@ function currentRoleView(
   if (room.secretWord) {
     return {
       role: "detective",
-      category: room.category,
-      word: room.secretWord,
+      category:
+        room.category,
+      word:
+        room.secretWord,
     };
   }
 
@@ -172,7 +183,8 @@ export function registerSocketHandlers(
 
           ack?.({
             ok: true,
-            roomCode: room.code,
+            roomCode:
+              room.code,
             playerId:
               hostPlayer.id,
             sessionToken,
@@ -233,13 +245,10 @@ export function registerSocketHandlers(
             > = {
               room_not_found:
                 "That room code doesn't exist.",
-
               room_full:
                 "That room is full.",
-
               game_already_started:
                 "That game has already started.",
-
               invalid_username:
                 "Enter a valid username.",
             };
@@ -374,7 +383,8 @@ export function registerSocketHandlers(
           player.socketId =
             socket.id;
 
-          player.connected = true;
+          player.connected =
+            true;
 
           socket.data.playerId =
             player.id;
@@ -440,13 +450,10 @@ export function registerSocketHandlers(
                   .playerId
             );
 
-          if (!player) {
-            return;
-          }
+          if (!player) return;
 
-          if (player.isHost) {
+          if (player.isHost)
             return;
-          }
 
           player.ready =
             !!payload?.ready;
@@ -470,13 +477,13 @@ export function registerSocketHandlers(
               socket
             );
 
-          if (!room) {
+          if (!room)
             return;
-          }
 
           if (
             room.hostId !==
-            socket.data.playerId
+            socket.data
+              .playerId
           ) {
             return sendError(
               socket,
@@ -492,9 +499,7 @@ export function registerSocketHandlers(
           }
 
           const check =
-            canStartGame(
-              room
-            );
+            canStartGame(room);
 
           if (!check.ok) {
             return sendError(
@@ -551,14 +556,12 @@ export function registerSocketHandlers(
       );
 
       // ---------------------------------------------------------------
-      // discussion:skip
+      // DISCUSSION SKIP
       // ---------------------------------------------------------------
 
       socket.on(
         "discussion:skip",
-        (
-          ack?: Function
-        ) => {
+        (ack?: Function) => {
           const room =
             requireRoom(
               socket
@@ -637,13 +640,13 @@ export function registerSocketHandlers(
               socket
             );
 
-          if (!room) {
+          if (!room)
             return;
-          }
 
           if (
             room.hostId !==
-            socket.data.playerId
+            socket.data
+              .playerId
           ) {
             return sendError(
               socket,
@@ -696,15 +699,18 @@ export function registerSocketHandlers(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function requireRoom(
   socket: Socket
 ): GameRoom | null {
   const code =
     socket.data.roomCode;
 
-  if (!code) {
+  if (!code)
     return null;
-  }
 
   return (
     getRoom(code) ??
@@ -719,9 +725,7 @@ function handleLeave(
   const room =
     requireRoom(socket);
 
-  if (!room) {
-    return;
-  }
+  if (!room) return;
 
   const playerId =
     socket.data.playerId;
@@ -765,29 +769,26 @@ function handleDisconnect(
   const room =
     requireRoom(socket);
 
-  if (!room) {
-    return;
-  }
+  if (!room) return;
 
   const playerId =
-    socket.data.playerId as
+    socket.data
+      .playerId as
       | string
       | null;
 
-  if (!playerId) {
+  if (!playerId)
     return;
-  }
 
   const player =
     room.players.find(
-      (p) => p.id === playerId
+      (p) =>
+        p.id === playerId
     );
 
-  if (!player) {
+  if (!player)
     return;
-  }
 
-  // Lobby disconnects are permanent.
   if (
     room.phase ===
     "lobby"
@@ -816,12 +817,16 @@ function handleDisconnect(
     return;
   }
 
-  // Active game.
-  player.connected = false;
+  player.connected =
+    false;
 
-  player.socketId = null;
+  player.socketId =
+    null;
 
-  // Remove disconnected player from skip votes.
+  /*
+   * Remove their skip vote because they're
+   * no longer an active voter.
+   */
   room.discussionSkipVotes =
     room.discussionSkipVotes.filter(
       (id) =>
@@ -843,11 +848,12 @@ function handleDisconnect(
       );
 
       const stillRoom =
-        getRoom(room.code);
+        getRoom(
+          room.code
+        );
 
-      if (!stillRoom) {
+      if (!stillRoom)
         return;
-      }
 
       const stillPlayer =
         stillRoom.players.find(

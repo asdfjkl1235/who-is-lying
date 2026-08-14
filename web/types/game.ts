@@ -1,3 +1,5 @@
+// Core shared types for the "Who Is Lying?" game engine.
+
 export type GamePhase =
   | "lobby"
   | "role_reveal"
@@ -7,9 +9,17 @@ export type GamePhase =
   | "results"
   | "finished";
 
-export type Role =
-  | "detective"
-  | "imposter";
+export type Role = "detective" | "imposter";
+
+export interface Player {
+  id: string;
+  socketId: string | null;
+  username: string;
+  isHost: boolean;
+  ready: boolean;
+  connected: boolean;
+  joinedAt: number;
+}
 
 export interface Hint {
   playerId: string;
@@ -33,23 +43,12 @@ export interface RoundResult {
 }
 
 export interface FinalResult {
-  winner:
-    | "detectives"
-    | "imposter";
-
+  winner: "detectives" | "imposter";
   imposterId: string;
-
   secretWord: string;
-
   category: string;
-
-  finalTally: Record<
-    string,
-    number
-  >;
-
+  finalTally: Record<string, number>;
   eliminatedId: string | null;
-
   reason:
     | "correct_vote"
     | "wrong_vote"
@@ -65,24 +64,54 @@ export const GAME_SETTINGS = {
   maxPlayers: 20,
 } as const;
 
+export interface GameRoom {
+  id: string;
+  code: string;
+  hostId: string;
+
+  players: Player[];
+
+  phase: GamePhase;
+
+  category: string | null;
+  secretWord: string | null;
+  imposterId: string | null;
+
+  hintRound: number;
+  turnOrder: string[];
+  currentTurnIndex: number;
+
+  hints: Hint[];
+  votes: Vote[];
+
+  roundHistory: RoundResult[];
+
+  /*
+   * Players who voted to skip the discussion.
+   *
+   * Only one vote per player.
+   */
+  discussionSkipVotes: string[];
+
+  phaseEndsAt: number | null;
+  createdAt: number;
+
+  winner: "detectives" | "imposter" | null;
+  finalResult: FinalResult | null;
+}
+
 export interface PublicPlayer {
   id: string;
   username: string;
   isHost: boolean;
   ready: boolean;
   connected: boolean;
-
   hasVoted?: boolean;
-
-  // NEW
-  hasSkippedDiscussion?: boolean;
 }
 
 export interface PublicRoomState {
   code: string;
-
   hostId: string;
-
   players: PublicPlayer[];
 
   phase: GamePhase;
@@ -93,42 +122,32 @@ export interface PublicRoomState {
 
   turnOrder: string[];
 
-  currentTurnPlayerId:
-    | string
-    | null;
+  currentTurnPlayerId: string | null;
 
   hints: Hint[];
 
-  phaseEndsAt:
-    | number
-    | null;
+  phaseEndsAt: number | null;
 
   votesSubmittedCount: number;
 
   totalVoters: number;
 
-  // NEW
+  /*
+   * Discussion skip voting information.
+   */
   discussionSkipVotesCount: number;
+  discussionSkipVotesNeeded: number;
+  hasVotedToSkipDiscussion: boolean;
 
-  discussionSkipRequired: number;
+  winner: "detectives" | "imposter" | null;
 
-  winner:
-    | "detectives"
-    | "imposter"
-    | null;
-
-  finalResult:
-    | FinalResult
-    | null;
+  finalResult: FinalResult | null;
 
   settings: typeof GAME_SETTINGS;
 }
 
 export interface PrivateRoleView {
   role: Role;
-
   category: string;
-
-  // null for imposter.
   word: string | null;
 }

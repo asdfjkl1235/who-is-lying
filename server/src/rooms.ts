@@ -1,5 +1,8 @@
 import { GameRoom, Player, GAME_SETTINGS } from "./types";
-import { generateUniqueRoomCode, generatePlayerId } from "./store";
+import {
+  generateUniqueRoomCode,
+  generatePlayerId,
+} from "./store";
 
 export function createRoom(
   hostUsername: string
@@ -34,13 +37,12 @@ export function createRoom(
     currentTurnIndex: 0,
 
     hints: [],
-
     votes: [],
+
+    roundHistory: [],
 
     // NEW
     discussionSkipVotes: [],
-
-    roundHistory: [],
 
     phaseEndsAt: null,
     createdAt: Date.now(),
@@ -64,9 +66,7 @@ export type JoinError =
 export function canJoinRoom(
   room: GameRoom | undefined
 ): JoinError | null {
-  if (!room) {
-    return "room_not_found";
-  }
+  if (!room) return "room_not_found";
 
   if (room.phase !== "lobby") {
     return "game_already_started";
@@ -82,7 +82,10 @@ export function canJoinRoom(
   return null;
 }
 
-export function addPlayer(room: GameRoom, username: string): Player {
+export function addPlayer(
+  room: GameRoom,
+  username: string
+): Player {
   const player: Player = {
     id: generatePlayerId(),
     socketId: null,
@@ -98,18 +101,19 @@ export function addPlayer(room: GameRoom, username: string): Player {
   return player;
 }
 
-export function removePlayer(room: GameRoom, playerId: string) {
-  room.players = room.players.filter((p) => p.id !== playerId);
-
-  // Remove them from discussion skip votes too.
-  room.discussionSkipVotes = room.discussionSkipVotes.filter(
-    (id) => id !== playerId
+export function removePlayer(
+  room: GameRoom,
+  playerId: string
+) {
+  room.players = room.players.filter(
+    (p) => p.id !== playerId
   );
 
-  // Remove any voting record they may have.
-  room.votes = room.votes.filter(
-    (vote) => vote.voterId !== playerId
-  );
+  // Also remove their discussion skip vote.
+  room.discussionSkipVotes =
+    room.discussionSkipVotes.filter(
+      (id) => id !== playerId
+    );
 
   reassignHostIfNeeded(room);
 }
@@ -132,9 +136,9 @@ export function reassignHostIfNeeded(
   if (nextHost) {
     room.hostId = nextHost.id;
 
-    room.players.forEach(
-      (p) => (p.isHost = p.id === nextHost.id)
-    );
+    room.players.forEach((p) => {
+      p.isHost = p.id === nextHost.id;
+    });
 
     nextHost.ready = true;
 
@@ -146,7 +150,10 @@ export function reassignHostIfNeeded(
 
 export function canStartGame(
   room: GameRoom
-): { ok: boolean; reason?: string } {
+): {
+  ok: boolean;
+  reason?: string;
+} {
   const connected = room.players.filter(
     (p) => p.connected
   );

@@ -28,35 +28,52 @@ type ConnectionStatus =
 interface AckResult {
   ok: boolean;
   error?: string;
+
   votes?: number;
-  required?: number;
+  needed?: number;
+
   [key: string]: unknown;
 }
 
 export function useGameSocket() {
   const socket = getSocket();
 
-  const [status, setStatus] =
+  const [
+    status,
+    setStatus,
+  ] =
     useState<ConnectionStatus>(
       "connecting"
     );
 
-  const [room, setRoom] =
+  const [
+    room,
+    setRoom,
+  ] =
     useState<PublicRoomState | null>(
       null
     );
 
-  const [role, setRole] =
+  const [
+    role,
+    setRole,
+  ] =
     useState<PrivateRoleView | null>(
       null
     );
 
-  const [playerId, setPlayerId] =
+  const [
+    playerId,
+    setPlayerId,
+  ] =
     useState<string | null>(
       null
     );
 
-  const [lastError, setLastError] =
+  const [
+    lastError,
+    setLastError,
+  ] =
     useState<string | null>(
       null
     );
@@ -64,39 +81,51 @@ export function useGameSocket() {
   const [
     lastRoundResult,
     setLastRoundResult,
-  ] = useState<RoundResult | null>(
-    null
-  );
+  ] =
+    useState<RoundResult | null>(
+      null
+    );
+
+  // -----------------------------------------------------------------------
+  // Socket listeners
+  // -----------------------------------------------------------------------
 
   useEffect(() => {
     function onConnect() {
-      setStatus("connected");
+      setStatus(
+        "connected"
+      );
 
       const stored =
         loadStoredSession();
 
-      if (stored) {
-        socket.emit(
-          "session:resume",
-          {
-            sessionToken:
-              stored.sessionToken,
-          },
-          (res: AckResult) => {
-            if (res.ok) {
-              setPlayerId(
-                stored.playerId
-              );
-            } else {
-              clearStoredSession();
-            }
+      if (!stored)
+        return;
+
+      socket.emit(
+        "session:resume",
+        {
+          sessionToken:
+            stored.sessionToken,
+        },
+        (
+          res: AckResult
+        ) => {
+          if (res.ok) {
+            setPlayerId(
+              stored.playerId
+            );
+          } else {
+            clearStoredSession();
           }
-        );
-      }
+        }
+      );
     }
 
     function onDisconnect() {
-      setStatus("disconnected");
+      setStatus(
+        "disconnected"
+      );
     }
 
     function onRoomUpdate(
@@ -114,7 +143,7 @@ export function useGameSocket() {
     function onHintNew(
       _hint: Hint
     ) {
-      // room:update already contains hints.
+      // room:update contains the full hints array.
     }
 
     function onVoteResult(
@@ -217,19 +246,25 @@ export function useGameSocket() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Create room
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
 
   const createRoom =
     useCallback(
-      (username: string) => {
+      (
+        username: string
+      ) => {
         return new Promise<AckResult>(
           (resolve) => {
             socket.emit(
               "room:create",
-              { username },
-              (res: AckResult) => {
+              {
+                username,
+              },
+              (
+                res: AckResult
+              ) => {
                 if (res.ok) {
                   setPlayerId(
                     res.playerId as string
@@ -258,9 +293,9 @@ export function useGameSocket() {
       [socket]
     );
 
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Join room
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
 
   const joinRoom =
     useCallback(
@@ -276,7 +311,9 @@ export function useGameSocket() {
                 username,
                 code,
               },
-              (res: AckResult) => {
+              (
+                res: AckResult
+              ) => {
                 if (res.ok) {
                   setPlayerId(
                     res.playerId as string
@@ -305,24 +342,28 @@ export function useGameSocket() {
       [socket]
     );
 
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Ready
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
 
   const setReady =
     useCallback(
-      (ready: boolean) => {
+      (
+        ready: boolean
+      ) => {
         socket.emit(
           "player:ready",
-          { ready }
+          {
+            ready,
+          }
         );
       },
       [socket]
     );
 
-  // ---------------------------------------------------------------
-  // Start
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Start game
+  // -----------------------------------------------------------------------
 
   const startGame =
     useCallback(() => {
@@ -331,20 +372,27 @@ export function useGameSocket() {
       );
     }, [socket]);
 
-  // ---------------------------------------------------------------
-  // Hint
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Submit hint
+  // -----------------------------------------------------------------------
 
   const submitHint =
     useCallback(
-      (text: string) => {
+      (
+        text: string
+      ) => {
         return new Promise<AckResult>(
           (resolve) => {
             socket.emit(
               "hint:submit",
-              { text },
-              (res: AckResult) =>
-                resolve(res)
+              {
+                text,
+              },
+              (
+                res: AckResult
+              ) => {
+                resolve(res);
+              }
             );
           }
         );
@@ -352,40 +400,57 @@ export function useGameSocket() {
       [socket]
     );
 
-  // ---------------------------------------------------------------
-  // Discussion skip
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // SKIP DISCUSSION
+  // -----------------------------------------------------------------------
 
   const skipDiscussion =
     useCallback(() => {
+      /*
+       * IMPORTANT:
+       * This returns a Promise.
+       *
+       * This fixes:
+       *
+       * TypeError: t.then is not a function
+       */
       return new Promise<AckResult>(
         (resolve) => {
           socket.emit(
             "discussion:skip",
             (
               res: AckResult
-            ) => resolve(res)
+            ) => {
+              resolve(res);
+            }
           );
         }
       );
     }, [socket]);
 
-  // ---------------------------------------------------------------
-  // Player vote
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Submit vote
+  // -----------------------------------------------------------------------
 
   const submitVote =
     useCallback(
       (
-        targetId: string | null
+        targetId:
+          | string
+          | null
       ) => {
         return new Promise<AckResult>(
           (resolve) => {
             socket.emit(
               "vote:submit",
-              { targetId },
-              (res: AckResult) =>
-                resolve(res)
+              {
+                targetId,
+              },
+              (
+                res: AckResult
+              ) => {
+                resolve(res);
+              }
             );
           }
         );
@@ -393,9 +458,9 @@ export function useGameSocket() {
       [socket]
     );
 
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Rematch
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
 
   const requestRematch =
     useCallback(() => {
@@ -404,9 +469,9 @@ export function useGameSocket() {
       );
     }, [socket]);
 
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Leave
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
 
   const leaveRoom =
     useCallback(() => {
@@ -417,19 +482,18 @@ export function useGameSocket() {
       clearStoredSession();
 
       setRoom(null);
-
       setRole(null);
-
       setPlayerId(null);
     }, [socket]);
 
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
   // Error
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
 
   const clearError =
     useCallback(
-      () => setLastError(null),
+      () =>
+        setLastError(null),
       []
     );
 
@@ -456,7 +520,6 @@ export function useGameSocket() {
 
     submitHint,
 
-    // NEW
     skipDiscussion,
 
     submitVote,

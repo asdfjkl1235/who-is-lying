@@ -9,7 +9,9 @@ import { useParams } from "next/navigation";
 
 import Link from "next/link";
 
-import { useGameSocket } from "@/hooks/useGameSocket";
+import {
+  useGameSocket,
+} from "@/hooks/useGameSocket";
 
 import ConnectionStatus from "@/components/ConnectionStatus";
 import Lobby from "@/components/Lobby";
@@ -26,27 +28,36 @@ export default function RoomPage() {
       code: string;
     }>();
 
-  const code = params.code;
+  const code =
+    params.code;
 
   const {
     status,
+
     room,
+
     role,
+
     playerId,
+
     lastError,
+
     lastRoundResult,
 
     setReady,
+
     startGame,
+
     submitHint,
 
-    // NEW
     skipDiscussion,
 
     submitVote,
 
     requestRematch,
+
     leaveRoom,
+
     clearError,
   } = useGameSocket();
 
@@ -55,7 +66,10 @@ export default function RoomPage() {
     setWaitedLongEnough,
   ] = useState(false);
 
-  // Wait before showing "room not found".
+  // -----------------------------------------------------------------------
+  // Connection timeout
+  // -----------------------------------------------------------------------
+
   useEffect(() => {
     const timer =
       setTimeout(() => {
@@ -68,11 +82,13 @@ export default function RoomPage() {
       clearTimeout(timer);
   }, []);
 
-  // Auto-clear errors.
+  // -----------------------------------------------------------------------
+  // Error timeout
+  // -----------------------------------------------------------------------
+
   useEffect(() => {
-    if (!lastError) {
+    if (!lastError)
       return;
-    }
 
     const timer =
       setTimeout(() => {
@@ -86,9 +102,9 @@ export default function RoomPage() {
     clearError,
   ]);
 
-  // ---------------------------------------------------------------
-  // Loading / reconnecting
-  // ---------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Loading
+  // -----------------------------------------------------------------------
 
   if (!room) {
     if (!waitedLongEnough) {
@@ -105,8 +121,8 @@ export default function RoomPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="text-lg text-white/60">
-          We couldn&apos;t find you in
-          room {code}.
+          We couldn&apos;t find you
+          in room {code}.
         </div>
 
         <Link
@@ -119,26 +135,31 @@ export default function RoomPage() {
     );
   }
 
+  // -----------------------------------------------------------------------
+  // Game
+  // -----------------------------------------------------------------------
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6 py-16">
-      {/* Error toast */}
       {lastError && (
         <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-xl border border-red-500/30 bg-red-950/80 px-4 py-2 text-sm text-red-200 backdrop-blur">
           {lastError}
         </div>
       )}
 
-      {/* Connection */}
       <ConnectionStatus
         status={status}
       />
 
       {/* Lobby */}
+
       {room.phase ===
         "lobby" && (
         <Lobby
           room={room}
-          playerId={playerId}
+          playerId={
+            playerId
+          }
           onToggleReady={
             setReady
           }
@@ -149,6 +170,7 @@ export default function RoomPage() {
       )}
 
       {/* Role reveal */}
+
       {room.phase ===
         "role_reveal" && (
         <RoleReveal
@@ -157,7 +179,8 @@ export default function RoomPage() {
         />
       )}
 
-      {/* Hint phase */}
+      {/* Hint */}
+
       {room.phase ===
         "hint" && (
         <HintPhase
@@ -173,6 +196,7 @@ export default function RoomPage() {
       )}
 
       {/* Discussion */}
+
       {room.phase ===
         "discussion" && (
         <DiscussionPhase
@@ -187,6 +211,7 @@ export default function RoomPage() {
       )}
 
       {/* Voting */}
+
       {room.phase ===
         "voting" && (
         <VotingPhase
@@ -200,7 +225,8 @@ export default function RoomPage() {
         />
       )}
 
-      {/* Results */}
+      {/* Round result */}
+
       {room.phase ===
         "results" && (
         <RoundResultBanner
@@ -211,7 +237,8 @@ export default function RoomPage() {
         />
       )}
 
-      {/* Finished */}
+      {/* Final result */}
+
       {room.phase ===
         "finished" && (
         <ResultScreen

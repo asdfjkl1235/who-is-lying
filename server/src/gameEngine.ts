@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+
 import {
   GameRoom,
   Player,
@@ -18,57 +19,26 @@ import {
 } from "./store";
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getConnectedPlayers(room: GameRoom): Player[] {
-  return room.players.filter((player) => player.connected);
-}
-
-/**
- * Strict majority.
- *
- * 4 players -> 3
- * 5 players -> 3
- * 6 players -> 4
- * 7 players -> 4
- */
-export function getDiscussionSkipRequired(
-  room: GameRoom
-): number {
-  const connectedCount = getConnectedPlayers(room).length;
-
-  return Math.floor(connectedCount / 2) + 1;
-}
-
-// ---------------------------------------------------------------------------
-// Public projection
+// Public state projection
 // ---------------------------------------------------------------------------
 
 export function projectPublicState(
   room: GameRoom
 ): PublicRoomState {
-  const skipVoteIds = new Set(
-    room.discussionSkipVotes
-  );
-
-  const players: PublicPlayer[] = room.players.map(
-    (p) => ({
+  const players: PublicPlayer[] =
+    room.players.map((p) => ({
       id: p.id,
       username: p.username,
       isHost: p.isHost,
       ready: p.ready,
       connected: p.connected,
-
-      // Useful for UI.
-      hasSkippedDiscussion: skipVoteIds.has(p.id),
-
-      // Useful for voting UI.
-      hasVoted: room.votes.some(
-        (vote) => vote.voterId === p.id
-      ),
-    })
-  );
+      hasVoted:
+        room.phase === "voting"
+          ? room.votes.some(
+              (v) => v.voterId === p.id
+            )
+          : false,
+    }));
 
   const currentTurnPlayerId =
     room.phase === "hint"
@@ -78,7 +48,20 @@ export function projectPublicState(
       : null;
 
   const connectedCount =
-    getConnectedPlayers(room).length;
+    room.players.filter(
+      (p) => p.connected
+    ).length;
+
+  /*
+   * Majority means MORE THAN half.
+   *
+   * 4 players -> 3 votes
+   * 5 players -> 3 votes
+   * 6 players -> 4 votes
+   * 7 players -> 4 votes
+   */
+  const discussionSkipVotesNeeded =
+    Math.floor(connectedCount / 2) + 1;
 
   return {
     code: room.code,
@@ -101,16 +84,24 @@ export function projectPublicState(
 
     phaseEndsAt: room.phaseEndsAt,
 
-    votesSubmittedCount: room.votes.length,
+    votesSubmittedCount:
+      room.votes.length,
 
     totalVoters: connectedCount,
 
-    // NEW
     discussionSkipVotesCount:
       room.discussionSkipVotes.length,
 
-    discussionSkipRequired:
-      getDiscussionSkipRequired(room),
+    discussionSkipVotesNeeded,
+
+    /*
+     * This is not personalized here because this public projection
+     * is broadcast to everyone.
+     *
+     * The client determines whether it already voted using its playerId
+     * and the count is enough for the UI.
+     */
+    hasVotedToSkipDiscussion: false,
 
     winner: room.winner,
 
@@ -123,17 +114,27 @@ export function projectPublicState(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Broadcast
+// ---------------------------------------------------------------------------
+
 function broadcastRoomState(
   io: Server,
   room: GameRoom
 ) {
   saveRoom(room);
 
-  io.to(room.code).emit(
-    "room:update",
-    projectPublicState(room)
-  );
+  io
+    .to(room.code)
+    .emit(
+      "room:update",
+      projectPublicState(room)
+    );
 }
+
+// ---------------------------------------------------------------------------
+// Private role
+// ---------------------------------------------------------------------------
 
 function emitPrivateRoles(
   io: Server,
@@ -155,12 +156,15 @@ function emitPrivateRoles(
             word: room.secretWord!,
           };
 
-    io.to(player.socketId).emit(
-      "game:role",
-      view
-    );
+    io
+      .to(player.socketId)
+      .emit("game:role", view);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function shuffledIds(
   players: Player[]
@@ -195,8 +199,10 @@ export function startGame(
   io: Server,
   room: GameRoom
 ) {
-  const { category, word } =
-    pickRandomCategoryAndWord();
+  const {
+    category,
+    word,
+  } = pickRandomCategoryAndWord();
 
   const turnOrder =
     shuffledIds(room.players);
@@ -204,14 +210,13 @@ export function startGame(
   const imposterId =
     turnOrder[
       Math.floor(
-        Math.random() * turnOrder.length
+        Math.random() *
+          turnOrder.length
       )
     ];
 
   room.category = category;
-
   room.secretWord = word;
-
   room.imposterId = imposterId;
 
   room.turnOrder = turnOrder;
@@ -224,10 +229,10 @@ export function startGame(
 
   room.votes = [];
 
+  room.roundHistory = [];
+
   // Reset discussion skip votes.
   room.discussionSkipVotes = [];
-
-  room.roundHistory = [];
 
   room.winner = null;
 
@@ -237,7 +242,8 @@ export function startGame(
 
   room.phaseEndsAt =
     Date.now() +
-    GAME_SETTINGS.roleRevealSeconds * 1000;
+    GAME_SETTINGS.roleRevealSeconds *
+      1000;
 
   emitPrivateRoles(io, room);
 
@@ -247,10 +253,7 @@ export function startGame(
     room.code,
     setTimeout(
       () =>
-        startHintRound(
-          io,
-          room
-        ),
+        startHintRound(io, room),
       GAME_SETTINGS.roleRevealSeconds *
         1000
     )
@@ -271,6 +274,11 @@ export function startHintRound(
 
   room.phase = "hint";
 
+  /*
+   * Reset discussion skip votes for every new round.
+   */
+  room.discussionSkipVotes = [];
+
   scheduleHintTurn(io, room);
 }
 
@@ -278,7 +286,6 @@ function scheduleHintTurn(
   io: Server,
   room: GameRoom
 ) {
-  // Skip disconnected players.
   while (
     room.currentTurnIndex <
       room.turnOrder.length &&
@@ -331,12 +338,14 @@ function scheduleHintTurn(
           submittedAt: Date.now(),
         });
 
-        io.to(room.code).emit(
-          "hint:new",
-          room.hints[
-            room.hints.length - 1
-          ]
-        );
+        io
+          .to(room.code)
+          .emit(
+            "hint:new",
+            room.hints[
+              room.hints.length - 1
+            ]
+          );
       }
 
       room.currentTurnIndex += 1;
@@ -345,6 +354,10 @@ function scheduleHintTurn(
     }, GAME_SETTINGS.hintSeconds * 1000)
   );
 }
+
+// ---------------------------------------------------------------------------
+// Submit hint
+// ---------------------------------------------------------------------------
 
 export interface SubmitHintResult {
   ok: boolean;
@@ -375,8 +388,7 @@ export function submitHint(
   ) {
     return {
       ok: false,
-      error:
-        "It's not your turn yet.",
+      error: "It's not your turn yet.",
     };
   }
 
@@ -395,17 +407,15 @@ export function submitHint(
     };
   }
 
-  const validation =
-    validateHint(
-      rawText,
-      room.secretWord!
-    );
+  const validation = validateHint(
+    rawText,
+    room.secretWord!
+  );
 
   if (!validation.valid) {
     return {
       ok: false,
-      error:
-        validation.reason,
+      error: validation.reason,
     };
   }
 
@@ -424,10 +434,9 @@ export function submitHint(
 
   room.hints.push(hint);
 
-  io.to(room.code).emit(
-    "hint:new",
-    hint
-  );
+  io
+    .to(room.code)
+    .emit("hint:new", hint);
 
   room.currentTurnIndex += 1;
 
@@ -448,10 +457,9 @@ export function startDiscussion(
   io: Server,
   room: GameRoom
 ) {
-  // Reset skip votes every time a discussion starts.
-  room.discussionSkipVotes = [];
-
   room.phase = "discussion";
+
+  room.discussionSkipVotes = [];
 
   room.phaseEndsAt =
     Date.now() +
@@ -464,10 +472,7 @@ export function startDiscussion(
     room.code,
     setTimeout(
       () =>
-        startVoting(
-          io,
-          room
-        ),
+        startVoting(io, room),
       GAME_SETTINGS.discussionSeconds *
         1000
     )
@@ -475,26 +480,21 @@ export function startDiscussion(
 }
 
 // ---------------------------------------------------------------------------
-// Discussion skip voting
+// SKIP DISCUSSION
 // ---------------------------------------------------------------------------
 
-export interface SubmitDiscussionSkipResult {
+export interface SkipDiscussionResult {
   ok: boolean;
   error?: string;
   votes?: number;
-  required?: number;
+  needed?: number;
 }
 
-/**
- * Player votes to skip the discussion.
- *
- * A strict majority is required.
- */
 export function submitDiscussionSkip(
   io: Server,
   room: GameRoom,
   playerId: string
-): SubmitDiscussionSkipResult {
+): SkipDiscussionResult {
   if (room.phase !== "discussion") {
     return {
       ok: false,
@@ -508,27 +508,22 @@ export function submitDiscussionSkip(
       (p) => p.id === playerId
     );
 
-  if (!player) {
-    return {
-      ok: false,
-      error: "Player not found.",
-    };
-  }
-
-  if (!player.connected) {
+  if (!player || !player.connected) {
     return {
       ok: false,
       error:
-        "You are disconnected.",
+        "You are not connected to this game.",
     };
   }
 
-  const alreadyVoted =
+  /*
+   * Prevent duplicate votes.
+   */
+  if (
     room.discussionSkipVotes.includes(
       playerId
-    );
-
-  if (alreadyVoted) {
+    )
+  ) {
     return {
       ok: false,
       error:
@@ -540,47 +535,56 @@ export function submitDiscussionSkip(
     playerId
   );
 
-  const connectedCount =
-    getConnectedPlayers(room).length;
+  const connectedPlayers =
+    room.players.filter(
+      (p) => p.connected
+    ).length;
 
-  const required =
+  const needed =
     Math.floor(
-      connectedCount / 2
+      connectedPlayers / 2
     ) + 1;
 
   const votes =
     room.discussionSkipVotes.length;
 
-  // Tell everyone about the updated vote count.
-  broadcastRoomState(io, room);
+  /*
+   * Tell everyone about the vote count.
+   */
+  io
+    .to(room.code)
+    .emit("discussion:skip:update", {
+      votes,
+      needed,
+    });
 
-  // Majority reached.
-  if (votes >= required) {
+  saveRoom(room);
+
+  /*
+   * Majority reached.
+   */
+  if (votes >= needed) {
     clearRoomTimer(room.code);
 
-    room.phaseEndsAt = null;
-
-    io.to(room.code).emit(
-      "discussion:skipped",
-      {
-        votes,
-        required,
-      }
-    );
+    io
+      .to(room.code)
+      .emit(
+        "discussion:skipped",
+        {
+          votes,
+          needed,
+        }
+      );
 
     startVoting(io, room);
-
-    return {
-      ok: true,
-      votes,
-      required,
-    };
+  } else {
+    broadcastRoomState(io, room);
   }
 
   return {
     ok: true,
     votes,
-    required,
+    needed,
   };
 }
 
@@ -592,10 +596,7 @@ export function startVoting(
   io: Server,
   room: GameRoom
 ) {
-  // Don't accidentally start voting twice.
-  if (
-    room.phase === "voting"
-  ) {
+  if (room.phase === "voting") {
     return;
   }
 
@@ -614,15 +615,16 @@ export function startVoting(
     room.code,
     setTimeout(
       () =>
-        resolveVotes(
-          io,
-          room
-        ),
+        resolveVotes(io, room),
       GAME_SETTINGS.votingSeconds *
         1000
     )
   );
 }
+
+// ---------------------------------------------------------------------------
+// Submit vote
+// ---------------------------------------------------------------------------
 
 export interface SubmitVoteResult {
   ok: boolean;
@@ -652,7 +654,7 @@ export function submitVote(
     return {
       ok: false,
       error:
-        "You can't vote right now.",
+        "You are not connected to this game.",
     };
   }
 
@@ -665,8 +667,7 @@ export function submitVote(
   if (alreadyVoted) {
     return {
       ok: false,
-      error:
-        "You already voted.",
+      error: "You already voted.",
     };
   }
 
@@ -692,23 +693,24 @@ export function submitVote(
     targetId,
   });
 
-  io.to(room.code).emit(
-    "vote:update",
-    {
+  io
+    .to(room.code)
+    .emit("vote:update", {
       votesSubmittedCount:
         room.votes.length,
 
       totalVoters:
-        getConnectedPlayers(room)
-          .length,
-    }
-  );
+        room.players.filter(
+          (p) => p.connected
+        ).length,
+    });
 
   saveRoom(room);
 
   const connectedCount =
-    getConnectedPlayers(room)
-      .length;
+    room.players.filter(
+      (p) => p.connected
+    ).length;
 
   if (
     room.votes.length >=
@@ -742,18 +744,15 @@ export function resolveVotes(
       room.votes
     );
 
-  room.roundHistory.push(
-    result
-  );
+  room.roundHistory.push(result);
 
   room.phase = "results";
 
   room.phaseEndsAt = null;
 
-  io.to(room.code).emit(
-    "vote:result",
-    result
-  );
+  io
+    .to(room.code)
+    .emit("vote:result", result);
 
   broadcastRoomState(io, room);
 
@@ -761,8 +760,6 @@ export function resolveVotes(
     result.wasSkip ||
     result.wasTie
   ) {
-    // No elimination.
-    // Continue with another hint round.
     setRoomTimer(
       room.code,
       setTimeout(
@@ -788,9 +785,11 @@ export function resolveVotes(
     eliminatedIsImposter
       ? "detectives"
       : "imposter",
+
     eliminatedIsImposter
       ? "correct_vote"
       : "wrong_vote",
+
     result.eliminatedId
   );
 }
@@ -805,10 +804,12 @@ export function finishGame(
   winner:
     | "detectives"
     | "imposter",
+
   reason:
     | "correct_vote"
     | "wrong_vote"
     | "imposter_disconnected",
+
   eliminatedId: string | null
 ) {
   clearRoomTimer(room.code);
@@ -828,30 +829,26 @@ export function finishGame(
 
   room.finalResult = {
     winner,
-
     imposterId:
       room.imposterId!,
-
     secretWord:
       room.secretWord!,
-
     category:
       room.category!,
-
     finalTally:
       lastTally,
-
     eliminatedId,
-
     reason,
   };
 
   broadcastRoomState(io, room);
 
-  io.to(room.code).emit(
-    "game:result",
-    room.finalResult
-  );
+  io
+    .to(room.code)
+    .emit(
+      "game:result",
+      room.finalResult
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -862,13 +859,9 @@ export function rematch(
   io: Server,
   room: GameRoom
 ) {
-  room.players.forEach(
-    (p) => {
-      p.ready = p.isHost;
-    }
-  );
-
-  room.discussionSkipVotes = [];
+  room.players.forEach((p) => {
+    p.ready = p.isHost;
+  });
 
   startGame(io, room);
 }
@@ -911,12 +904,12 @@ export function handleImposterDisconnect(
 
   broadcastRoomState(io, room);
 
-  io.to(room.code).emit(
-    "game:result",
-    room.finalResult
-  );
+  io
+    .to(room.code)
+    .emit(
+      "game:result",
+      room.finalResult
+    );
 }
 
-export {
-  broadcastRoomState,
-};
+export { broadcastRoomState };
