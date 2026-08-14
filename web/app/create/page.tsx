@@ -53,7 +53,7 @@ export default function CreateGamePage() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             maxLength={20}
-            placeholder="Noor"
+            placeholder="Masab"
             className="input-field"
           />
         </div>

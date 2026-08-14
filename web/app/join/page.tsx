@@ -42,7 +42,7 @@ export default function JoinGamePage() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             maxLength={20}
-            placeholder="Noor"
+            placeholder="MASAB"
             className="input-field"
           />
         </div>
