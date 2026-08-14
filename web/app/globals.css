@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #0a0a0f;
+  color: #f4f2ff;
+}
+
+body {
+  background-image: radial-gradient(circle at 15% 0%, rgba(139, 92, 246, 0.16), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(124, 58, 237, 0.12), transparent 40%);
+  background-attachment: fixed;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.btn-primary {
+  @apply rounded-xl bg-accent-600 px-6 py-3 font-semibold text-white transition hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+.btn-secondary {
+  @apply rounded-xl border border-white/10 bg-white/5 px-6 py-3 font-semibold text-white/90 transition hover:bg-white/10;
+}
+
+.input-field {
+  @apply w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.35);
+  border-radius: 8px;
+}
