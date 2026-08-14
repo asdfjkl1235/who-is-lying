@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useGameSocket } from "@/hooks/useGameSocket";
 import ConnectionStatus from "@/components/ConnectionStatus";
@@ -12,12 +13,9 @@ import VotingPhase from "@/components/VotingPhase";
 import RoundResultBanner from "@/components/RoundResultBanner";
 import ResultScreen from "@/components/ResultScreen";
 
-export default function RoomPage({
-  params,
-}: {
-  params: Promise<{ code: string }>;
-}) {
-  const { code: roomCode } = use(params);
+export default function RoomPage() {
+  const params = useParams<{ code: string }>();
+  const code = params.code;
 
   const {
     status,
@@ -38,19 +36,21 @@ export default function RoomPage({
   const [waitedLongEnough, setWaitedLongEnough] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setWaitedLongEnough(true), 4000);
+    const timer = setTimeout(() => {
+      setWaitedLongEnough(true);
+    }, 4000);
 
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     if (!lastError) return;
 
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       clearError();
     }, 4000);
 
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [lastError, clearError]);
 
   if (!room) {
@@ -58,7 +58,7 @@ export default function RoomPage({
       return (
         <main className="flex min-h-screen items-center justify-center px-6">
           <div className="text-white/40">
-            Connecting to room {roomCode || "…"}…
+            Connecting to room {code || "…"}…
           </div>
         </main>
       );
@@ -67,7 +67,7 @@ export default function RoomPage({
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="text-lg text-white/60">
-          We couldn&apos;t find you in room {roomCode}.
+          We couldn&apos;t find you in room {code}.
         </div>
 
         <Link href="/join" className="btn-primary">
