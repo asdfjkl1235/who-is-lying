@@ -132,6 +132,18 @@ export function useGameSocket() {
       state: PublicRoomState
     ) {
       setRoom(state);
+
+      /*
+       * When Rematch sends the room back to the lobby,
+       * remove the previous game's private role.
+       *
+       * The next role will be assigned by the server
+       * when the host starts the new game.
+       */
+      if (state.phase === "lobby") {
+        setRole(null);
+        setLastRoundResult(null);
+      }
     }
 
     function onRole(
@@ -464,6 +476,14 @@ export function useGameSocket() {
 
   const requestRematch =
     useCallback(() => {
+      /*
+       * IMPORTANT:
+       *
+       * Rematch does NOT start a new game.
+       *
+       * The server changes the room phase to "lobby".
+       * The host must then press Start Game.
+       */
       socket.emit(
         "game:rematch"
       );
@@ -484,6 +504,7 @@ export function useGameSocket() {
       setRoom(null);
       setRole(null);
       setPlayerId(null);
+      setLastRoundResult(null);
     }, [socket]);
 
   // -----------------------------------------------------------------------
