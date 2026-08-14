@@ -390,6 +390,7 @@ function scheduleHintTurn(
     }, Math.max(0, hintEndsAt - Date.now()))
   );
 }
+
 // ---------------------------------------------------------------------------
 // Submit hint
 // ---------------------------------------------------------------------------
@@ -894,11 +895,56 @@ export function rematch(
   io: Server,
   room: GameRoom
 ) {
+  /*
+   * Stop any timer left over from the previous game.
+   */
+  clearRoomTimer(room.code);
+
+  /*
+   * Return the existing room to the lobby.
+   *
+   * We DO NOT create a new room.
+   * We DO NOT start the game automatically.
+   */
+  room.phase = "lobby";
+
+  /*
+   * Clear game-specific information.
+   * This prevents the previous game's secret word,
+   * imposter, hints, votes, and results from carrying
+   * into the next match.
+   */
+  room.category = null;
+  room.secretWord = null;
+  room.imposterId = null;
+
+  room.turnOrder = [];
+  room.currentTurnIndex = 0;
+  room.hintRound = 0;
+
+  room.hints = [];
+  room.votes = [];
+  room.roundHistory = [];
+
+  room.discussionSkipVotes = [];
+
+  room.winner = null;
+  room.finalResult = null;
+
+  room.phaseEndsAt = null;
+
+  /*
+   * The host is automatically ready.
+   * Everyone else must ready up again.
+   */
   room.players.forEach((p) => {
     p.ready = p.isHost;
   });
 
-  startGame(io, room);
+  /*
+   * Send the updated lobby state to everyone.
+   */
+  broadcastRoomState(io, room);
 }
 
 // ---------------------------------------------------------------------------
