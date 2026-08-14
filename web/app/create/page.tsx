@@ -26,7 +26,7 @@ export default function CreateGamePage() {
     if (res.ok) {
       router.push(`/room/${res.roomCode}`);
     } else {
-      setError(res.error ?? "Couldn&apos;t create a room. Try again.");
+      setError(res.error ?? "Couldn't create a room. Try again.");
     }
   }
 
