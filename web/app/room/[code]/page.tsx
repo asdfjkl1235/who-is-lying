@@ -12,7 +12,11 @@ import VotingPhase from "@/components/VotingPhase";
 import RoundResultBanner from "@/components/RoundResultBanner";
 import ResultScreen from "@/components/ResultScreen";
 
-export default function RoomPage({ params }: { params: { code: string } }) {
+export default function RoomPage({
+  params,
+}: {
+  params: Promise<{ code: string }>;
+}) {
   const {
     status,
     room,
@@ -29,16 +33,28 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     clearError,
   } = useGameSocket();
 
+  const [code, setCode] = useState("");
   const [waitedLongEnough, setWaitedLongEnough] = useState(false);
 
   useEffect(() => {
+    params.then(({ code }) => {
+      setCode(code);
+    });
+  }, [params]);
+
+  useEffect(() => {
     const t = setTimeout(() => setWaitedLongEnough(true), 4000);
+
     return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
     if (!lastError) return;
-    const t = setTimeout(clearError, 4000);
+
+    const t = setTimeout(() => {
+      clearError();
+    }, 4000);
+
     return () => clearTimeout(t);
   }, [lastError, clearError]);
 
@@ -46,13 +62,19 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     if (!waitedLongEnough) {
       return (
         <main className="flex min-h-screen items-center justify-center px-6">
-          <div className="text-white/40">Connecting to room {params.code}…</div>
+          <div className="text-white/40">
+            Connecting to room {code || "…"}…
+          </div>
         </main>
       );
     }
+
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="text-lg text-white/60">We couldn't find you in room {params.code}.</div>
+        <div className="text-lg text-white/60">
+          We couldn&apos;t find you in room {code}.
+        </div>
+
         <Link href="/join" className="btn-primary">
           Join a Room
         </Link>
@@ -63,32 +85,61 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6 py-16">
       {lastError && (
-        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-red-500/30 bg-red-950/80 px-4 py-2 text-sm text-red-200 backdrop-blur">
+        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-xl border border-red-500/30 bg-red-950/80 px-4 py-2 text-sm text-red-200 backdrop-blur">
           {lastError}
         </div>
       )}
+
       <ConnectionStatus status={status} />
 
       {room.phase === "lobby" && (
-        <Lobby room={room} playerId={playerId} onToggleReady={setReady} onStart={startGame} />
+        <Lobby
+          room={room}
+          playerId={playerId}
+          onToggleReady={setReady}
+          onStart={startGame}
+        />
       )}
 
-      {room.phase === "role_reveal" && <RoleReveal role={role} room={room} />}
+      {room.phase === "role_reveal" && (
+        <RoleReveal role={role} room={room} />
+      )}
 
       {room.phase === "hint" && (
-        <HintPhase room={room} role={role} playerId={playerId} onSubmitHint={submitHint} />
+        <HintPhase
+          room={room}
+          role={role}
+          playerId={playerId}
+          onSubmitHint={submitHint}
+        />
       )}
 
-      {room.phase === "discussion" && <DiscussionPhase room={room} />}
+      {room.phase === "discussion" && (
+        <DiscussionPhase room={room} />
+      )}
 
       {room.phase === "voting" && (
-        <VotingPhase room={room} playerId={playerId} onSubmitVote={submitVote} />
+        <VotingPhase
+          room={room}
+          playerId={playerId}
+          onSubmitVote={submitVote}
+        />
       )}
 
-      {room.phase === "results" && <RoundResultBanner room={room} result={lastRoundResult} />}
+      {room.phase === "results" && (
+        <RoundResultBanner
+          room={room}
+          result={lastRoundResult}
+        />
+      )}
 
       {room.phase === "finished" && (
-        <ResultScreen room={room} playerId={playerId} onRematch={requestRematch} onLeave={leaveRoom} />
+        <ResultScreen
+          room={room}
+          playerId={playerId}
+          onRematch={requestRematch}
+          onLeave={leaveRoom}
+        />
       )}
     </main>
   );
