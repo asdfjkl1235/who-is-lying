@@ -13,8 +13,8 @@ export type GamePhase =
 export type Role = "detective" | "imposter";
 
 export interface Player {
-  id: string; // stable player id (persists across reconnects)
-  socketId: string | null; // null while disconnected
+  id: string;
+  socketId: string | null;
   username: string;
   isHost: boolean;
   ready: boolean;
@@ -32,12 +32,12 @@ export interface Hint {
 
 export interface Vote {
   voterId: string;
-  targetId: string | null; // null === skip vote
+  targetId: string | null;
 }
 
 export interface RoundResult {
   round: number;
-  tally: Record<string, number>; // playerId | "skip" -> count
+  tally: Record<string, number>;
   eliminatedId: string | null;
   wasSkip: boolean;
   wasTie: boolean;
@@ -62,8 +62,7 @@ export const GAME_SETTINGS = {
   maxPlayers: 20,
 } as const;
 
-// Internal (server-only) room representation. Never send this whole object
-// to a client directly -- always project a per-player view first.
+// Internal server-only room representation.
 export interface GameRoom {
   id: string;
   code: string;
@@ -82,7 +81,12 @@ export interface GameRoom {
   currentTurnIndex: number;
 
   hints: Hint[];
+
+  // Actual player elimination votes.
   votes: Vote[];
+
+  // Players who voted to skip the discussion phase.
+  discussionSkipVotes: string[];
 
   roundHistory: RoundResult[];
 
@@ -93,9 +97,7 @@ export interface GameRoom {
   finalResult: FinalResult | null;
 }
 
-// What a specific player is allowed to see. This is what gets broadcast
-// per-socket -- it is the enforcement point for "never send the Imposter
-// the secret word".
+// Public player information.
 export interface PublicPlayer {
   id: string;
   username: string;
@@ -103,28 +105,42 @@ export interface PublicPlayer {
   ready: boolean;
   connected: boolean;
   hasVoted?: boolean;
+  hasSkippedDiscussion?: boolean;
 }
 
 export interface PublicRoomState {
   code: string;
   hostId: string;
   players: PublicPlayer[];
+
   phase: GamePhase;
+
   category: string | null;
+
   hintRound: number;
   turnOrder: string[];
   currentTurnPlayerId: string | null;
+
   hints: Hint[];
+
   phaseEndsAt: number | null;
+
   votesSubmittedCount: number;
   totalVoters: number;
+
+  // Discussion skip vote information.
+  discussionSkipVotesCount: number;
+  discussionSkipRequired: number;
+
   winner: "detectives" | "imposter" | null;
   finalResult: FinalResult | null;
+
   settings: typeof GAME_SETTINGS;
 }
 
 export interface PrivateRoleView {
   role: Role;
   category: string;
-  word: string | null; // ALWAYS null for the imposter
+  word: string | null;
+  // ALWAYS null for the imposter.
 }

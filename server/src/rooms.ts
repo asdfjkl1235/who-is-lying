@@ -1,8 +1,11 @@
 import { GameRoom, Player, GAME_SETTINGS } from "./types";
 import { generateUniqueRoomCode, generatePlayerId } from "./store";
 
-export function createRoom(hostUsername: string): { room: GameRoom; hostPlayer: Player } {
+export function createRoom(
+  hostUsername: string
+): { room: GameRoom; hostPlayer: Player } {
   const code = generateUniqueRoomCode();
+
   const hostPlayer: Player = {
     id: generatePlayerId(),
     socketId: null,
@@ -17,24 +20,39 @@ export function createRoom(hostUsername: string): { room: GameRoom; hostPlayer: 
     id: code,
     code,
     hostId: hostPlayer.id,
+
     players: [hostPlayer],
+
     phase: "lobby",
+
     category: null,
     secretWord: null,
     imposterId: null,
+
     hintRound: 0,
     turnOrder: [],
     currentTurnIndex: 0,
+
     hints: [],
+
     votes: [],
+
+    // NEW
+    discussionSkipVotes: [],
+
     roundHistory: [],
+
     phaseEndsAt: null,
     createdAt: Date.now(),
+
     winner: null,
     finalResult: null,
   };
 
-  return { room, hostPlayer };
+  return {
+    room,
+    hostPlayer,
+  };
 }
 
 export type JoinError =
@@ -43,12 +61,24 @@ export type JoinError =
   | "game_already_started"
   | "invalid_username";
 
-export function canJoinRoom(room: GameRoom | undefined): JoinError | null {
-  if (!room) return "room_not_found";
-  if (room.phase !== "lobby") return "game_already_started";
-  if (room.players.filter((p) => p.connected).length >= GAME_SETTINGS.maxPlayers) {
+export function canJoinRoom(
+  room: GameRoom | undefined
+): JoinError | null {
+  if (!room) {
+    return "room_not_found";
+  }
+
+  if (room.phase !== "lobby") {
+    return "game_already_started";
+  }
+
+  if (
+    room.players.filter((p) => p.connected).length >=
+    GAME_SETTINGS.maxPlayers
+  ) {
     return "room_full";
   }
+
   return null;
 }
 
@@ -62,36 +92,80 @@ export function addPlayer(room: GameRoom, username: string): Player {
     connected: true,
     joinedAt: Date.now(),
   };
+
   room.players.push(player);
+
   return player;
 }
 
 export function removePlayer(room: GameRoom, playerId: string) {
   room.players = room.players.filter((p) => p.id !== playerId);
+
+  // Remove them from discussion skip votes too.
+  room.discussionSkipVotes = room.discussionSkipVotes.filter(
+    (id) => id !== playerId
+  );
+
+  // Remove any voting record they may have.
+  room.votes = room.votes.filter(
+    (vote) => vote.voterId !== playerId
+  );
+
   reassignHostIfNeeded(room);
 }
 
-export function reassignHostIfNeeded(room: GameRoom): Player | null {
-  const currentHost = room.players.find((p) => p.id === room.hostId);
-  if (currentHost && currentHost.connected) return null;
+export function reassignHostIfNeeded(
+  room: GameRoom
+): Player | null {
+  const currentHost = room.players.find(
+    (p) => p.id === room.hostId
+  );
 
-  const nextHost = room.players.find((p) => p.connected);
+  if (currentHost && currentHost.connected) {
+    return null;
+  }
+
+  const nextHost = room.players.find(
+    (p) => p.connected
+  );
+
   if (nextHost) {
     room.hostId = nextHost.id;
-    room.players.forEach((p) => (p.isHost = p.id === nextHost.id));
+
+    room.players.forEach(
+      (p) => (p.isHost = p.id === nextHost.id)
+    );
+
     nextHost.ready = true;
+
     return nextHost;
   }
+
   return null;
 }
 
-export function canStartGame(room: GameRoom): { ok: boolean; reason?: string } {
-  const connected = room.players.filter((p) => p.connected);
+export function canStartGame(
+  room: GameRoom
+): { ok: boolean; reason?: string } {
+  const connected = room.players.filter(
+    (p) => p.connected
+  );
+
   if (connected.length < GAME_SETTINGS.minPlayers) {
-    return { ok: false, reason: `Need at least ${GAME_SETTINGS.minPlayers} players.` };
+    return {
+      ok: false,
+      reason: `Need at least ${GAME_SETTINGS.minPlayers} players.`,
+    };
   }
+
   if (!connected.every((p) => p.ready)) {
-    return { ok: false, reason: "Not everyone is ready yet." };
+    return {
+      ok: false,
+      reason: "Not everyone is ready yet.",
+    };
   }
-  return { ok: true };
+
+  return {
+    ok: true,
+  };
 }
