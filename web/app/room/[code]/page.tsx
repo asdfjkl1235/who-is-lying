@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useGameSocket } from "@/hooks/useGameSocket";
 import ConnectionStatus from "@/components/ConnectionStatus";
@@ -15,8 +15,10 @@ import ResultScreen from "@/components/ResultScreen";
 export default function RoomPage({
   params,
 }: {
-  params: { code: string };
+  params: Promise<{ code: string }>;
 }) {
+  const { code: roomCode } = use(params);
+
   const {
     status,
     room,
@@ -33,12 +35,7 @@ export default function RoomPage({
     clearError,
   } = useGameSocket();
 
-  const [code, setCode] = useState("");
   const [waitedLongEnough, setWaitedLongEnough] = useState(false);
-
-  useEffect(() => {
-    setCode(params.code);
-  }, [params.code]);
 
   useEffect(() => {
     const t = setTimeout(() => setWaitedLongEnough(true), 4000);
@@ -61,7 +58,7 @@ export default function RoomPage({
       return (
         <main className="flex min-h-screen items-center justify-center px-6">
           <div className="text-white/40">
-            Connecting to room {code || "…"}…
+            Connecting to room {roomCode || "…"}…
           </div>
         </main>
       );
@@ -70,7 +67,7 @@ export default function RoomPage({
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="text-lg text-white/60">
-          We couldn&apos;t find you in room {code}.
+          We couldn&apos;t find you in room {roomCode}.
         </div>
 
         <Link href="/join" className="btn-primary">
