@@ -286,6 +286,7 @@ function scheduleHintTurn(
   io: Server,
   room: GameRoom
 ) {
+  // Skip disconnected players.
   while (
     room.currentTurnIndex <
       room.turnOrder.length &&
@@ -301,6 +302,7 @@ function scheduleHintTurn(
     room.currentTurnIndex += 1;
   }
 
+  // All players have completed their hint turn.
   if (
     room.currentTurnIndex >=
     room.turnOrder.length
@@ -309,15 +311,34 @@ function scheduleHintTurn(
     return;
   }
 
-  room.phaseEndsAt =
+  /*
+   * Create one exact deadline for this player's turn.
+   *
+   * The frontend receives this same timestamp through
+   * room.phaseEndsAt, so everyone sees the same timer.
+   */
+  const hintEndsAt =
     Date.now() +
     GAME_SETTINGS.hintSeconds * 1000;
 
+  room.phase = "hint";
+  room.phaseEndsAt = hintEndsAt;
+
+  // Broadcast the new turn and exact deadline.
   broadcastRoomState(io, room);
 
+  /*
+   * Use the exact same deadline for the backend timer.
+   */
   setRoomTimer(
     room.code,
     setTimeout(() => {
+      // Ignore an old timer if the game already moved
+      // to another phase.
+      if (room.phase !== "hint") {
+        return;
+      }
+
       const currentPlayerId =
         room.turnOrder[
           room.currentTurnIndex
@@ -329,32 +350,46 @@ function scheduleHintTurn(
             p.id === currentPlayerId
         );
 
+      /*
+       * If the player didn't submit a hint before
+       * the timer expired, automatically record one.
+       */
       if (player) {
-        room.hints.push({
-          playerId: player.id,
-          username: player.username,
-          text: "(no hint given)",
-          round: room.hintRound,
-          submittedAt: Date.now(),
-        });
-
-        io
-          .to(room.code)
-          .emit(
-            "hint:new",
-            room.hints[
-              room.hints.length - 1
-            ]
+        const alreadySubmitted =
+          room.hints.some(
+            (h) =>
+              h.playerId === player.id &&
+              h.round === room.hintRound
           );
+
+        if (!alreadySubmitted) {
+          const hint = {
+            playerId: player.id,
+            username: player.username,
+            text: "(no hint given)",
+            round: room.hintRound,
+            submittedAt: Date.now(),
+          };
+
+          room.hints.push(hint);
+
+          io
+            .to(room.code)
+            .emit(
+              "hint:new",
+              hint
+            );
+        }
       }
 
+      // Move to the next player.
       room.currentTurnIndex += 1;
 
+      // Give the next player a fresh 25 seconds.
       scheduleHintTurn(io, room);
-    }, GAME_SETTINGS.hintSeconds * 1000)
+    }, Math.max(0, hintEndsAt - Date.now()))
   );
 }
-
 // ---------------------------------------------------------------------------
 // Submit hint
 // ---------------------------------------------------------------------------

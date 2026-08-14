@@ -56,7 +56,7 @@ export interface FinalResult {
 }
 
 export const GAME_SETTINGS = {
-  hintSeconds: 15,
+  hintSeconds: 25,
   discussionSeconds: 30,
   votingSeconds: 20,
   roleRevealSeconds: 5,
